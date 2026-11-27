@@ -3104,7 +3104,18 @@ function prepareInventoryEntry(entry, rows) {
   entry.containerId = newest ? placeKey(newest) : 'container:' + uid();
   entry.date = rows.reduce((latest,row) => Math.max(latest,row.date+1),entry.date);
 }
-async function addInventoryEntries(batch) {
+// iOS bağlantıyı kopardıysa (InvalidStateError/UnknownError) arşivi yeniden açıp bir kez daha dene:
+// kullanıcı ikinci kez dokunmak zorunda kalmasın.
+async function withArchiveRetry(work) {
+  try { return await work(); }
+  catch (error) {
+    if (temporaryArchive || !['InvalidStateError','UnknownError'].includes(error?.name)) throw error;
+    await reopenArchive();
+    return work();
+  }
+}
+function addInventoryEntries(batch) { return withArchiveRetry(() => addInventoryEntriesOnce(batch)); }
+async function addInventoryEntriesOnce(batch) {
   const prepare = rows => {
     const combined = [...rows];
     for (const entry of batch) {
