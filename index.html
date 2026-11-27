@@ -551,11 +551,11 @@ html:not([data-theme=forest]):not([data-theme=umber]) body{background:radial-gra
 </section>
 <section class="settings-card membership-card" aria-labelledby="movingPackageTitle">
   <div class="row membership-heading">
-    <h3 id="movingPackageTitle">Taşınma Paketi</h3>
+    <h3 id="movingPackageTitle">Nereye Koydum Pro</h3>
     <span class="membership-state" id="movingState"></span>
   </div>
-  <p>Kolileri işaretle, içindekileri kaydet ve hangi kolinin açıldığını takip et.</p>
-  <ul><li>Toplu eşya kaydı</li><li>Paketlendi → Taşındı → Açıldı</li><li>Oda bazlı taşınma ilerlemesi</li></ul>
+  <p>İlk 10 eşya ücretsiz. Pro ile evindeki her şeyi kaydet, taşınırken kolileri takip et.</p>
+  <ul><li>Sınırsız eşya</li><li>Toplu eşya kaydı</li><li>Paketlendi → Taşındı → Açıldı</li><li>Oda bazlı taşınma ilerlemesi</li></ul>
   <div class="row">
     <button id="tryMoving" type="button" class="primary">Taşınmayı dene</button>
     <button id="tryLabel" type="button">QR etiketini dene</button>
@@ -2216,7 +2216,15 @@ const dictionary = {
  "Kutudaki QR kodunu kameraya göster.":"Hold the container’s QR code in front of the camera.",
  "Kamera açılamadı. QR fotoğrafı seçebilir veya kutu kodunu girebilirsin.":"Could not open the camera. Choose a QR photo or enter the container code.",
 
- "Premium Ev":"Premium Home","Yakında":"Coming soon","Şimdi dene":"Try now","Taşınma Paketi":"Moving Pack",
+ "Premium Ev":"Premium Home","Yakında":"Coming soon","Şimdi dene":"Try now","Taşınma Paketi":"Moving Pack","Nereye Koydum Pro":"Where Did I Put It? Pro","Sınırsız eşya":"Unlimited items",
+ "İlk 10 eşya ücretsiz. Pro ile evindeki her şeyi kaydet, taşınırken kolileri takip et.":"The first 10 items are free. With Pro, save everything at home and track boxes when moving.",
+ "Evindeki her eşyayı kaydet, taşınırken kolileri tek tek takip et.":"Save every item at home and track each box when moving.",
+ "10 eşyayı doldurdun.":"You've used your 10 free items.",
+ "Kayıtların güvende; aramaya ve güncellemeye devam edebilirsin. Yeni eşya eklemek için Pro'ya geç.":"Your records are safe; you can keep searching and updating. Upgrade to Pro to add new items.",
+ "Pro açıldı.":"Pro unlocked.","Pro bu cihazda zaten açık.":"Pro is already unlocked on this device.",
+ "İlk 10 eşya, arama, odalar, kutular, QR etiketi ve yedek her zaman ücretsiz.":"The first 10 items, search, rooms, containers, QR labels and backups are always free.",
+ "Ücretsiz eşya hakkın doldu. Kaydetmek için Pro'ya geç.":"Your free items are used up. Upgrade to Pro to save.",
+ "ücretsiz eşya kullanıldı":"free items used",
  "Bir eşya taşındığında evdekiler son konumu kendi telefonunda görebilecek.":"Everyone at home will be able to see an item’s latest location on their phone.",
  "Ortak ev arşivi ve üye daveti":"Shared home archive and member invitations","Cihazlar arası otomatik eşitleme":"Automatic device sync",
  "Özel ve paylaşılan eşyalar":"Private and shared items","Plan seçimi ödeme başlatmaz.":"Selecting a plan does not start a payment.",
@@ -3229,6 +3237,8 @@ const storeProducts = {
   homeYearly:{id:'nereyekoydum.premiumhome.yearly',price:399.99,kind:'year',ready:false}
 };
 const purchaseKey = 'nereye-koydum-test-purchases';
+// iPhone uygulamasıyla aynı: ilk 10 farklı eşya ücretsiz, yeni eşya eklemek Pro ister.
+const FREE_ITEM_LIMIT = 10;
 const productIds = new Set(Object.values(storeProducts).map(product => product.id));
 let purchases = new Set();
 try {
@@ -3243,16 +3253,16 @@ function savePurchases(next) {
   purchases = next;
 }
 let paywallAfter = null;
-function requireProduct(key, after) {
+function requireProduct(key, after, reason) {
   if (owns(key)) { after?.(); return true; }
   paywallAfter = after || null;
-  openPaywall();
+  openPaywall(reason);
   return false;
 }
-function openPaywall() {
-  $('paywallTitle').textContent = t('Taşınma Paketi');
-  $('paywallText').textContent = t('Taşınırken kolileri toplu kaydet, durumlarını işaretle ve hangi kolinin açıldığını takip et.');
-  $('paywallList').replaceChildren(...['Toplu eşya kaydı','Paketlendi → Taşındı → Açıldı','Oda bazlı taşınma ilerlemesi'].map(text => el('li',t(text))));
+function openPaywall(reason) {
+  $('paywallTitle').textContent = t(reason === 'limit' ? '10 eşyayı doldurdun.' : 'Nereye Koydum Pro');
+  $('paywallText').textContent = t(reason === 'limit' ? "Kayıtların güvende; aramaya ve güncellemeye devam edebilirsin. Yeni eşya eklemek için Pro'ya geç." : 'Evindeki her eşyayı kaydet, taşınırken kolileri tek tek takip et.');
+  $('paywallList').replaceChildren(...['Sınırsız eşya','Toplu eşya kaydı','Paketlendi → Taşındı → Açıldı','Oda bazlı taşınma ilerlemesi'].map(text => el('li',t(text))));
   $('paywallPrice').textContent = price('movingPack') + ' · ' + t('tek seferlik');
   $('paywallTest').textContent = t(testModeNote);
   $('paywallBuy').textContent = t('Satın al') + ' · ' + price('movingPack');
@@ -3264,7 +3274,7 @@ function openPaywall() {
 function finishUnlock() {
   if ($('paywallDialog').open) $('paywallDialog').close();
   render();
-  status(t('Taşınma Paketi açıldı.'));
+  status(t('Pro açıldı.'));
   const after = paywallAfter;
   paywallAfter = null;
   after?.();
@@ -3275,7 +3285,7 @@ $('paywallBuy').onclick = () => {
   finishUnlock();
 };
 function restoreMessage() {
-  return t(owns('movingPack') ? 'Taşınma Paketi bu cihazda zaten açık.' : 'Bu tarayıcıda geri yüklenecek satın alım bulunamadı.');
+  return t(owns('movingPack') ? 'Pro bu cihazda zaten açık.' : 'Bu tarayıcıda geri yüklenecek satın alım bulunamadı.');
 }
 $('paywallRestore').onclick = () => {
   if (owns('movingPack')) finishUnlock();
@@ -3303,7 +3313,7 @@ function renderStore() {
   const owned = owns('movingPack');
   $('movingState').textContent = owned ? t('Açık ✓') : price('movingPack') + ' · ' + t('tek seferlik');
   $('tryMoving').textContent = owned ? t('Toplu eşya ekle') : t('Paketi aç') + ' · ' + price('movingPack');
-  $('movingNote').textContent = t('Tek QR etiketi oluşturmak ve okutmak ücretsiz. Kayıt, arama, odalar, kutular ve yedek her zaman ücretsiz.');
+  $('movingNote').textContent = (owned ? '' : `${Math.min(latestInventory().length,FREE_ITEM_LIMIT)}/${FREE_ITEM_LIMIT} ${t('ücretsiz eşya kullanıldı')} · `) + t('İlk 10 eşya, arama, odalar, kutular, QR etiketi ve yedek her zaman ücretsiz.');
   $('storeMode').textContent = t(testModeNote);
   $('resetPurchases').hidden = !purchases.size;
 }
@@ -4363,6 +4373,14 @@ async function saveDraft() {
     feedback(t(item ? 'Nereye koydun?' : 'Hangi eşya?'));
     $(item ? 'place' : 'item').focus();
     return;
+  }
+  {
+    const known = draft.group || (!draft.newItem && (draft.suggestedGroup || entries.find(row => normal(row.item) === normal(item))?.group));
+    if (!known && !owns('movingPack') && latestInventory().length >= FREE_ITEM_LIMIT) {
+      feedback(t("Ücretsiz eşya hakkın doldu. Kaydetmek için Pro'ya geç."));
+      requireProduct('movingPack',() => saveDraft(),'limit');
+      return;
+    }
   }
   if (draft.choicePending) {
     feedback(t('Aynı adı taşıyan birden fazla eşya var. Kaydetmeden önce birini seç.'));
