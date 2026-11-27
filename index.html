@@ -629,9 +629,9 @@ html:not([data-theme=forest]):not([data-theme=umber]) body{background:radial-gra
 </nav>
 
 </div>
-<dialog id="moveDialog">
+<dialog id="moveDialog" aria-labelledby="moveTitle">
 <form id="moveForm">
-<h2>Kutuyu taşı</h2>
+<h2 id="moveTitle">Kutuyu taşı</h2>
 <p id="moveFrom"></p>
 <label>Yeni oda<input id="moveRoom" maxlength="50" required></label>
 <label>Yeni konum<input id="movePath" maxlength="240" required></label>
@@ -651,8 +651,8 @@ html:not([data-theme=forest]):not([data-theme=umber]) body{background:radial-gra
 <div class="row"><button id="restoreConfirm" type="button" class="primary">Yedeği ekle</button><button id="restoreCancel" type="button">Vazgeç</button></div>
 <p id="restoreProgress" role="status"></p>
 </dialog>
-<dialog id="bulkDialog" class="package-dialog">
-<form id="bulkForm"><h2>Toplu eşya ekle</h2>
+<dialog id="bulkDialog" class="package-dialog" aria-labelledby="bulkTitle">
+<form id="bulkForm"><h2 id="bulkTitle">Toplu eşya ekle</h2>
 <label>Toplu kayıt cümlesi<input id="bulkSentence" maxlength="600" placeholder="Mavi kutuya atkıyı, eldiveni ve bereyi koydum."></label>
 <div class="row"><button id="bulkAnalyze" type="button">Cümleyi analiz et</button><button id="bulkVoice" type="button">Sesli söyle</button></div>
 <label>Her satıra bir eşya<textarea id="bulkItems" rows="5" required></textarea></label>
@@ -661,13 +661,13 @@ html:not([data-theme=forest]):not([data-theme=umber]) body{background:radial-gra
 <p id="bulkStatus" role="status"></p>
 <div class="row"><button id="bulkCommit" class="primary">Eşyaları kaydet</button><button id="bulkCancel" type="button">Vazgeç</button></div></form>
 </dialog>
-<dialog id="qrDialog" class="package-dialog">
+<dialog id="qrDialog" class="package-dialog" aria-labelledby="qrTitle">
 <div id="printableLabel"><h2 id="qrTitle">Kutu etiketi</h2><canvas id="qrCanvas" aria-label="Kutu QR kodu"></canvas><p id="qrToken"></p></div>
 <div class="row"><button id="qrPrint" type="button">Etiketi yazdır</button><button id="qrDownload" type="button">QR görselini indir</button><button id="qrCopy" type="button">Kutu kodunu kopyala</button><button id="qrClose" type="button">Kapat</button></div>
 <p id="qrCopyStatus" role="status"></p>
 </dialog>
-<dialog id="codeDialog" class="package-dialog">
-<form id="codeForm"><h2>Kutu koduyla aç</h2><label>Kutu kodu<input id="codeInput" required autocomplete="off"></label>
+<dialog id="codeDialog" class="package-dialog" aria-labelledby="codeTitle">
+<form id="codeForm"><h2 id="codeTitle">Kutu koduyla aç</h2><label>Kutu kodu<input id="codeInput" required autocomplete="off"></label>
 <label id="qrFileLabel" hidden>QR fotoğrafı<input id="qrFile" type="file" accept="image/*"></label>
 <div class="row"><button id="scanCamera" type="button" hidden>Kamerayla okut</button><button id="stopScan" type="button" hidden>Kamerayı kapat</button></div>
 <video id="qrVideo" autoplay playsinline muted hidden></video>
@@ -2433,7 +2433,12 @@ const dictionary = {
   "Yedek arşive eklendi. Mevcut kayıtlar korundu.": "Backup restored. Existing entries were kept.",
   " Favoriler kalıcı olarak saklanamadı.": " Favorites could not be saved permanently.",
   "Yedek açılamadı. Nereye Koydum? yedek dosyasını kontrol et.": "Could not restore the backup. Check your backup file.",
-  "Tarayıcı arşivi açılamadı.": "Could not open the browser archive."
+  "Tarayıcı arşivi açılamadı.": "Could not open the browser archive.",
+  "Safari, uzun süre açılmayan sitelerin verilerini silebilir. Kayıtlarını korumak için uygulamayı Ana Ekran’a ekle ve düzenli yedek al.": "Safari may delete data of sites you have not opened for a while. Add the app to your Home Screen and back up regularly to keep your items.",
+  "Bu kutu Safari’deki arşivde yok. Kayıtların Ana Ekran uygulamasındaysa onu açıp “Kutu koduyla aç” ile QR’ı okut.": "This container is not in Safari’s archive. If your items are in the Home Screen app, open it and scan the QR with “Open by container code”.",
+  "Dosyayı kaydet": "Save file",
+  "Dosya hazır. Kaydetmek için “Dosyayı kaydet”e dokun.": "File ready. Tap “Save file” to keep it.",
+  "Arşiv yükleniyor…": "Loading archive…"
 };
 let language = navigator.language?.toLowerCase().startsWith('tr') ? 'tr' : 'en';
 try {
@@ -2448,8 +2453,8 @@ for (let node = walker.nextNode(); node; node = walker.nextNode()) {
   const label = node.nodeValue.trim();
   if (Object.hasOwn(dictionary,label)) staticLabels.push(() => { node.nodeValue = t(label); });
 }
-for (const node of document.querySelectorAll('[placeholder],[aria-label]')) {
-  for (const attr of ['placeholder','aria-label']) {
+for (const node of document.querySelectorAll('[placeholder],[aria-label],[alt]')) {
+  for (const attr of ['placeholder','aria-label','alt']) {
     const label = node.getAttribute(attr);
     if (Object.hasOwn(dictionary,label)) staticLabels.push(() => node.setAttribute(attr,t(label)));
   }
@@ -2471,6 +2476,43 @@ $('language').onchange = () => {
   applyLanguage();
 };
 const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
+const isIOS = /iP(?:hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const isStandalone = () => navigator.standalone === true || Boolean(window.matchMedia?.('(display-mode: standalone)').matches);
+let storagePersisted = false;
+async function requestPersistentStorage() {
+  try { storagePersisted = Boolean(await navigator.storage?.persisted?.()) || Boolean(await navigator.storage?.persist?.()); } catch {}
+  render();
+}
+function downloadBlob(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = name;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url),30000);
+}
+// iPhone Ana Ekran uygulamasında <a download> çalışmıyor ya da uygulamayı geri dönüşsüz bir ekrana kilitliyor:
+// iOS'ta paylaşım sayfasını (Dosyalar'a Kaydet) kullan.
+async function deliverFile(blob, name, target) {
+  let file;
+  try { file = new File([blob],name,{type:blob.type}); } catch {}
+  if (file && (isIOS || isStandalone()) && navigator.canShare?.({files:[file]})) {
+    try { await navigator.share({files:[file]}); return true; }
+    catch (error) {
+      if (error?.name === 'AbortError') return false;
+      if (error?.name === 'NotAllowedError' && target) {
+        const again = button(t('Dosyayı kaydet'),async () => { again.remove(); if (await deliverFile(blob,name,target)) target.textContent = ''; });
+        target.replaceChildren(t('Dosya hazır. Kaydetmek için “Dosyayı kaydet”e dokun.') + ' ',again);
+        again.focus();
+        return false;
+      }
+    }
+  }
+  downloadBlob(blob,name);
+  return true;
+}
 const uid = () => globalThis.crypto?.randomUUID?.() || Date.now() + '-' + Math.random();
 let entries = [], draft, session, search, saving = false, opened, ready = false;
 let urls = [], draftUrl;
@@ -2508,19 +2550,50 @@ function button(text, action) {
   return node;
 }
 let temporaryArchive = null;
-const db = new Promise((resolve,reject) => {
-  const request = indexedDB.open('nereye-koydum',1);
-  request.onupgradeneeded = () => request.result.createObjectStore('entries',{keyPath:'id'});
-  request.onsuccess = () => resolve(request.result);
-  request.onerror = () => reject(request.error);
-  request.onblocked = () => reject(Error('Arşiv meşgul'));
-});
+function openArchive() {
+  return new Promise((resolve,reject) => {
+    const request = indexedDB.open('nereye-koydum',1);
+    request.onupgradeneeded = () => request.result.createObjectStore('entries',{keyPath:'id'});
+    request.onsuccess = () => {
+      const database = request.result;
+      // iOS: arka plandan dönünce bağlantı kopabiliyor ("Connection to Indexed Database server lost").
+      database.onclose = () => { if (!temporaryArchive) reopenArchive(); };
+      database.onversionchange = () => database.close();
+      resolve(database);
+    };
+    request.onerror = () => reject(request.error);
+    request.onblocked = () => reject(Error('Arşiv meşgul'));
+  });
+}
+let db = openArchive();
+function reopenArchive() {
+  db.then(database => { try { database.close(); } catch {} },() => {});
+  db = openArchive();
+  db.catch(() => {});
+  return db;
+}
+// iPhone Safari, Blob/File verisini IndexedDB'ye yazarken hata verebiliyor.
+// Medya bu yüzden ham byte (ArrayBuffer) olarak saklanır, okurken Blob'a döner.
+async function packMedia(value) {
+  if (!(value instanceof Blob)) return value;
+  return {nkMedia:1,type:value.type || '',data:await value.arrayBuffer()};
+}
+function unpackMedia(value) {
+  return value && value.nkMedia === 1 && value.data instanceof ArrayBuffer ? new Blob([value.data],{type:value.type || ''}) : value;
+}
+async function packEntries(rows) {
+  return Promise.all(rows.map(async row => ({...row,audio:await packMedia(row.audio),photo:await packMedia(row.photo)})));
+}
+function unpackEntry(row) {
+  if (!row || (!row.audio?.nkMedia && !row.photo?.nkMedia)) return row;
+  return {...row,audio:unpackMedia(row.audio),photo:unpackMedia(row.photo)};
+}
 async function load() {
   if (temporaryArchive) return [...temporaryArchive].sort((a,b) => b.date-a.date);
   const database = await db;
   return new Promise((resolve,reject) => {
     const request = database.transaction('entries').objectStore('entries').getAll();
-    request.onsuccess = () => resolve(request.result.sort((a,b) => b.date - a.date));
+    request.onsuccess = () => resolve(request.result.map(unpackEntry).sort((a,b) => b.date - a.date));
     request.onerror = () => reject(request.error);
   });
 }
@@ -2986,14 +3059,7 @@ function inventoryCSV() {
   return '\uFEFF' + [header,...rows].map(row => row.map(csvCell).join(',')).join('\r\n');
 }
 $('csv').onclick = () => {
-  const url = URL.createObjectURL(new Blob([inventoryCSV()],{type:'text/csv;charset=utf-8'}));
-  const link = el('a');
-  link.href = url;
-  link.download = language === 'tr' ? 'esya-envanteri.csv' : 'item-inventory.csv';
-  document.body.append(link);
-  link.click();
-  link.remove();
-  setTimeout(() => URL.revokeObjectURL(url),30000);
+  void deliverFile(new Blob([inventoryCSV()],{type:'text/csv;charset=utf-8'}),language === 'tr' ? 'esya-envanteri.csv' : 'item-inventory.csv',$('status'));
 };
 
 let activePlace = null;
@@ -3033,9 +3099,9 @@ function adoptKnownPlace(entry, rows) {
 }
 function prepareInventoryEntry(entry, rows) {
   adoptKnownPlace(entry,recentRows(rows));
-  const containers = existingContainers(recentRows(rows),entry);
-  if (containers.size > 1) throw Error('ambiguous-container');
-  entry.containerId = containers.values().next().value || 'container:' + uid();
+  const latest = recentRows(rows), path = normalizedPlace(entry);
+  const newest = latest.find(row => normalizedPlace(row) === path);
+  entry.containerId = newest ? placeKey(newest) : 'container:' + uid();
   entry.date = rows.reduce((latest,row) => Math.max(latest,row.date+1),entry.date);
 }
 async function addInventoryEntries(batch) {
@@ -3052,6 +3118,7 @@ async function addInventoryEntries(batch) {
     return;
   }
   const database = await db;
+  const packed = await packEntries(batch);
   return new Promise((resolve,reject) => {
     const tx = database.transaction('entries','readwrite');
     const store = tx.objectStore('entries');
@@ -3064,7 +3131,10 @@ async function addInventoryEntries(batch) {
     tx.onabort = () => { clearTimeout(timeout); reject(failure || tx.error); };
     const request = store.getAll();
     request.onsuccess = () => {
-      try { prepare(request.result); for (const entry of batch) store.add(entry); }
+      try {
+        prepare(request.result);
+        batch.forEach((entry,index) => store.add({...entry,audio:packed[index].audio,photo:packed[index].photo}));
+      }
       catch (error) { failure = error; tx.abort(); }
     };
   });
@@ -3405,15 +3475,11 @@ $('qrOpen').onclick = () => {
 };
 $('qrPrint').onclick = () => window.print();
 $('qrDownload').onclick = () => {
-  try {
-    const link = el('a');
-    const name = $('qrTitle').textContent.replace(/[^\p{L}\p{N}]+/gu,'-').replace(/^-|-$/g,'').slice(0,75);
-    link.download = (name || 'NereyeKoydum') + '-QR.png';
-    link.href = $('qrCanvas').toDataURL('image/png');
-    document.body.append(link);
-    link.click();
-    link.remove();
-  } catch { $('qrCopyStatus').textContent = t('QR görseli hazırlanamadı.'); }
+  const name = ($('qrTitle').textContent.replace(/[^\p{L}\p{N}]+/gu,'-').replace(/^-|-$/g,'').slice(0,75) || 'NereyeKoydum') + '-QR.png';
+  $('qrCanvas').toBlob(blob => {
+    if (!blob) { $('qrCopyStatus').textContent = t('QR görseli hazırlanamadı.'); return; }
+    deliverFile(blob,name,$('qrCopyStatus')).catch(() => { $('qrCopyStatus').textContent = t('QR görseli hazırlanamadı.'); });
+  },'image/png');
 };
 $('qrCopy').onclick = async () => {
   try {
@@ -3451,7 +3517,7 @@ function openLinkedContainer() {
   const matches = latestInventory().filter(entry => containerToken(entry) === token);
   const locations = new Set(matches.map(locationCardKey));
   if (locations.size === 1) { activateLocation(locations.values().next().value); status(t('Kutu açıldı.')); }
-  else status(t(locations.size ? 'Bu kod birden fazla konumda var. Yerler ekranından kutunu seç.' : 'Bu bağlantıdaki kutu arşivde bulunamadı.'));
+  else status(t(locations.size ? 'Bu kod birden fazla konumda var. Yerler ekranından kutunu seç.' : isIOS && !isStandalone() ? 'Bu kutu Safari’deki arşivde yok. Kayıtların Ana Ekran uygulamasındaysa onu açıp “Kutu koduyla aç” ile QR’ı okut.' : 'Bu bağlantıdaki kutu arşivde bulunamadı.'));
 }
 window.addEventListener('hashchange', () => { if (ready) openLinkedContainer(); });
 function parseBulkSentence(sentence) {
@@ -3513,7 +3579,10 @@ $('bulkForm').onsubmit = async event => {
     info.textContent = '';
     render();
     status(t(temporaryArchive ? 'Eşya bu oturumda kaydedildi.' : 'Eşyalar kaydedildi.'));
-  } catch { info.textContent = t('Eşyalar eklenemedi. Taslak açık kaldı.'); }
+  } catch (error) {
+    if (!temporaryArchive && ['UnknownError','InvalidStateError'].includes(error?.name)) reopenArchive();
+    info.textContent = t('Eşyalar eklenemedi. Taslak açık kaldı.');
+  }
   finally { $('bulkCommit').disabled = $('bulkCancel').disabled = false; }
 };
 function visibleMovingLocations() {
@@ -3923,8 +3992,10 @@ function render() {
     'Bu tarayıcı ses kaydını destekliyor. Otomatik metne çevirme burada kullanılamıyor.');
   renderArchiveMetrics();
   refreshPlacePicker();
-  $('storageMode').hidden = !temporaryArchive;
+  const evictable = !temporaryArchive && !storagePersisted && isIOS && !isStandalone() && entries.length > 0;
+  $('storageMode').hidden = !temporaryArchive && !evictable;
   if (temporaryArchive) $('storageMode').textContent = t('Kalıcı arşiv açılamadı. Bu oturumdaki kayıtları saklamak için Ayarlar’dan yedek indir.');
+  else if (evictable) $('storageMode').textContent = t('Safari, uzun süre açılmayan sitelerin verilerini silebilir. Kayıtlarını korumak için uygulamayı Ana Ekran’a ekle ve düzenli yedek al.');
   renderSavedSearches();
   renderVoiceMetric();
   urls.forEach(url => URL.revokeObjectURL(url));
@@ -4237,6 +4308,26 @@ $('removePhoto').onclick = () => {
   feedback('');
   $('save').focus();
 };
+async function shrinkPhoto(blob) {
+  if (!(blob instanceof Blob) || blob.size < 600_000 || /gif/i.test(blob.type)) return blob;
+  const url = URL.createObjectURL(blob);
+  try {
+    const image = new Image();
+    image.src = url;
+    await image.decode();
+    const scale = Math.min(1,1600 / Math.max(image.naturalWidth,image.naturalHeight));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1,Math.round(image.naturalWidth * scale));
+    canvas.height = Math.max(1,Math.round(image.naturalHeight * scale));
+    const context = canvas.getContext('2d');
+    context.fillStyle = '#fff';
+    context.fillRect(0,0,canvas.width,canvas.height);
+    context.drawImage(image,0,0,canvas.width,canvas.height);
+    const small = await new Promise(resolve => canvas.toBlob(resolve,'image/jpeg',0.82));
+    return small && small.size < blob.size ? small : blob;
+  } catch { return blob; }
+  finally { URL.revokeObjectURL(url); }
+}
 function selectedPhoto() {
   const file = $('photo').files?.[0];
   if (!file) return undefined;
@@ -4283,6 +4374,7 @@ async function saveDraft() {
   feedback(t(ready ? 'Kaydediliyor…' : 'Arşiv hazırlanıyor. Kayıt hazır olunca eklenecek.'));
   try {
     await archiveReady;
+    if (entry.photo) entry.photo = await shrinkPhoto(entry.photo);
     const group = attempt.group || (!attempt.newItem && (attempt.suggestedGroup || entries.find(row => normal(row.item) === normal(item))?.group)) || id;
     entry.group = group;
     const existing = entries.find(row => row.group === group);
@@ -4309,7 +4401,9 @@ async function saveDraft() {
     draft = null;
     render();
     status(t(temporaryArchive ? 'Eşya bu oturumda kaydedildi.' : 'Eşyanın yeri kaydedildi.'));
-  } catch (error) { feedback(t(error?.message === 'ambiguous-container' ? 'Bu konumda birden fazla kutu kaydı var. Kaydı ayırt etmek için kutunun adını değiştir.' : error?.name === 'QuotaExceededError' ? 'Depolama alanı dolu. Taslak açık kaldı.' : error?.name === 'TimeoutError' ? 'Depolama yanıt vermedi. Taslağın açık kaldı, yeniden deneyebilirsin.' : 'Kayıt saklanamadı. Taslağın açık kaldı.')); }
+  } catch (error) {
+    if (!temporaryArchive && ['UnknownError','InvalidStateError'].includes(error?.name)) reopenArchive();
+    feedback(t(error?.message === 'ambiguous-container' ? 'Bu konumda birden fazla kutu kaydı var. Kaydı ayırt etmek için kutunun adını değiştir.' : error?.name === 'QuotaExceededError' ? 'Depolama alanı dolu. Taslak açık kaldı.' : error?.name === 'TimeoutError' ? 'Depolama yanıt vermedi. Taslağın açık kaldı, yeniden deneyebilirsin.' : 'Kayıt saklanamadı. Taslağın açık kaldı.') + (['ambiguous-container'].includes(error?.message) || ['QuotaExceededError','TimeoutError'].includes(error?.name) ? '' : ' (' + String(error?.name || error?.message || 'hata').slice(0,40) + ')')); }
   finally { saving = false; controls(); }
 }
 $('save').onclick = saveDraft;
@@ -4352,10 +4446,23 @@ function validateBackup(data) {
   });
   return {entries,favorites:Array.isArray(data.favorites) ? data.favorites.filter(id => typeof id === 'string') : [],savedSearches:validSavedSearches(data.savedSearches),moving:validateMoving(data.moving)};
 }
-async function mergeBackup(entries) {
+function adoptImportedContainers(current, incoming) {
+  const known = new Map();
+  for (const row of recentRows(current)) {
+    const path = normalizedPlace(row);
+    if (!known.has(path)) known.set(path,placeKey(row));
+  }
+  return incoming.map(row => {
+    const target = known.get(normalizedPlace(row));
+    return target && target !== placeKey(row) ? {...row,containerId:target} : row;
+  });
+}
+async function mergeBackup(incoming) {
+  let rows = adoptImportedContainers(temporaryArchive || entries,incoming);
+  if (!temporaryArchive) rows = await packEntries(rows);
   if (temporaryArchive) {
     const seen = new Set(temporaryArchive.map(entry => entry.id));
-    for (const entry of entries) {
+    for (const entry of rows) {
       if (seen.has(entry.id)) continue;
       seen.add(entry.id);
       temporaryArchive.push(entry);
@@ -4371,7 +4478,7 @@ async function mergeBackup(entries) {
     const request = store.getAllKeys();
     request.onsuccess = () => {
       const existing = new Set(request.result);
-      for (const entry of entries) {
+      for (const entry of rows) {
         if (existing.has(entry.id)) continue;
         store.add(entry);
         existing.add(entry.id);
@@ -4389,15 +4496,9 @@ $('export').onclick = async () => {
       ...entry,audio:await encodeMedia(entry.audio),photo:await encodeMedia(entry.photo)
     })));
     const payload = JSON.stringify({format:'nereye-koydum',version:1,entries:records,favorites:[...favorites],savedSearches,moving:[...moving]});
-    const url = URL.createObjectURL(new Blob([payload],{type:'application/json'}));
-    const link = el('a');
-    link.href = url;
-    link.download = 'NereyeKoydum-yedek.json';
-    document.body.append(link);
-    link.click();
-    link.remove();
-    setTimeout(() => URL.revokeObjectURL(url),30000);
-    backupStatus(records.length + t(' konum kaydı yedeğe eklendi.'));
+    if (await deliverFile(new Blob([payload],{type:'application/json'}),'NereyeKoydum-yedek.json',$('backupStatus'))) {
+      backupStatus(records.length + t(' konum kaydı yedeğe eklendi.'));
+    }
   } catch { backupStatus(t('Yedek oluşturulamadı.')); }
   finally { $('export').disabled = false; }
 };
@@ -4476,13 +4577,16 @@ $('restoreConfirm').onclick = async () => {
 };
 function initializeArchive() {
   let timer;
-  const opening = load();
+  const slow = setTimeout(() => status(t('Arşiv yükleniyor…')),1500);
   const deadline = new Promise((_,reject) => {
-    timer = setTimeout(() => reject(Error('archive-open-timeout')),2500);
+    timer = setTimeout(() => reject(Error('archive-open-timeout')),4000);
   });
-  return Promise.race([opening,deadline]).then(saved => {
+  return Promise.race([db,deadline]).then(() => { clearTimeout(timer); return load(); }).then(saved => {
+    clearTimeout(slow);
+    if ($('status').textContent === t('Arşiv yükleniyor…')) status('');
     entries = saved;
   },() => {
+    clearTimeout(slow);
     temporaryArchive = [];
     db.then(database => database.close?.(),() => {});
   }).finally(() => {
@@ -4490,6 +4594,7 @@ function initializeArchive() {
     ready = true;
     render();
     openLinkedContainer();
+    if (!temporaryArchive) requestPersistentStorage();
   });
 }
 applyLanguage();
